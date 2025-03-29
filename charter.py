@@ -1,46 +1,56 @@
-import matplotlib.colors as mcolors
+import matplotlib
 import matplotlib.pyplot as plt
+import colorsys
 import pandas as pd
 from enum import Enum
-
-
 
 class Charter:
     def __init__(self):
         pass
+
     class DarkTheme(Enum):
         CHART_BACKGROUND_COLOR = '#292929'
-        PLOT_AREA_BACKGROUND_COLOR = '#252525'
+        PLOT_AREA_BACKGROUND_COLOR = '#222222'
         PLOT_AREA_BORDER_COLOR = '#353535'
         GRID_COLOR = False
+        
         TICK_COLOR = '#555555'
         TICK_LABEL_COLOR = '#bbbbbb'
+        
         BAR_COLOR = 'steelblue'
+        # BAR_BORDER_COLOR = '#353535'
         LINE_COLOR = 'steelblue'
+
         TITLE_COLOR = 'white'
         TEXT_COLOR = 'white'
-        AXES_LABELCOLOR = 'white'
-        AXES_TITLECOLOR = 'white'
+        AXES_LABEL_COLOR = 'white'
+        AXES_TITLE_COLOR = 'white'
 
     class LightTheme(Enum):
         CHART_BACKGROUND_COLOR = '#dddddd'
         PLOT_AREA_BACKGROUND_COLOR = '#bcbcbc'
         PLOT_AREA_BORDER_COLOR = '#9a9a9a'
         GRID_COLOR = False
+
         TICK_COLOR = '#cccccc'
         TICK_LABEL_COLOR = '#262626'
+
         BAR_COLOR = 'steelblue'
+        # BAR_BORDER_COLOR = '#666666'
         LINE_COLOR = 'steelblue'
+
         TITLE_COLOR = 'black'
         TEXT_COLOR = 'black'
-        AXES_LABELCOLOR = 'black'
-        AXES_TITLECOLOR = 'black'
+        AXES_LABEL_COLOR = 'black'
+        AXES_TITLE_COLOR = 'black'
 
     THEMES = {
         'dark': DarkTheme,
         'light': LightTheme
         }
 
+
+    # -----------------------------------------------------------------------------------------------
 
     def set_minx_maxx(self,minx,maxx):
         if minx is not None or maxx is not None:
@@ -88,6 +98,15 @@ class Charter:
                 else:
                     print('Chartert WARNING: Passed miny and/or maxy is not used beacuse miny > maxy !')   
 
+
+    # -----------------------------------------------------------------------------------------------
+
+    def shift_color_lightness(self,color,lightness_multiplier):
+        rgb = matplotlib.colors.ColorConverter.to_rgb(color)
+        h, l, s = colorsys.rgb_to_hls(*rgb)
+        r, g, b = colorsys.hls_to_rgb(h, min(1, l * lightness_multiplier), s)
+        return f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+
     def set_theme(self,fig,theme_config):
 
         cf = theme_config
@@ -114,20 +133,24 @@ class Charter:
 
         ax.title.set_color(cf.TITLE_COLOR.value)
 
-        plt.rcParams.update({
-            'text.color': cf.TEXT_COLOR.value,
-            'axes.labelcolor': cf.AXES_LABELCOLOR.value,
-        })
+        ax.xaxis.label.set_color(cf.AXES_LABEL_COLOR.value)
+        ax.yaxis.label.set_color(cf.AXES_LABEL_COLOR.value)
+
+    # -----------------------------------------------------------------------------------------------
 
     def hist(self,
             x: int | list | pd.Series,
             w: int | float = 6.0,
             h: int | float = 2.0,
-            theme: str = 'dark',
+            orientation: str = 'vertical',
             bins: int = 50,
+            theme: str = 'dark',
             color: str | list | dict = None,
-            minx: float = None, maxx: float = None,
-            miny: float = None, maxy: float = None,
+            edgecolor: str = None,
+            minx: float = None,
+            maxx: float = None,
+            miny: float = None,
+            maxy: float = None,
             title: str = None,
             **kwargs):
 
@@ -142,18 +165,30 @@ class Charter:
             except:
                 processed_args['color'] = color
 
+        if edgecolor is None: processed_args['edgecolor'] = self.shift_color_lightness(cf.BAR_COLOR.value,0.75)
+        else: processed_args['edgecolor'] = edgecolor
+
         fig=plt.figure(figsize=(w,h))
-        plt.hist(x=x.dropna().values,bins=bins, **processed_args, **kwargs);
+        plt.hist(x=x.dropna().values,
+                 bins=bins,
+                 orientation=orientation,
+                 **processed_args,
+                 **kwargs);
 
         self.set_minx_maxx(minx,maxx)
         self.set_miny_maxy(miny,maxy)
-    
-        plt.ylabel('count')
         
-        try: xname = x.name
-        except: xname=None
-        if xname is not None: plt.xlabel(x.name)
-
+        if orientation == 'horizontal':
+            plt.xlabel('count')
+            try: xname = x.name
+            except: xname=None
+            if xname is not None: plt.ylabel(x.name)
+        else:
+            plt.ylabel('count')
+            try: xname = x.name
+            except: xname=None
+            if xname is not None: plt.xlabel(x.name)
+        
         if title is None:
             if type(x) == pd.Series:
                 title = f'Histogram of "{x.name}"'
@@ -161,29 +196,43 @@ class Charter:
 
         self.set_theme(fig,cf)
 
+        plt.show()
+
+
+    # -----------------------------------------------------------------------------------------------
 
     def bar(self,
-            x: int | list = [],
-            y: int | list = [],
+            x: int | list | pd.Series,
+            y: int | list | pd.Series,
             w: int | float = 6.0,
             h: int | float = 2.0,
-            x_labels_angle: int | float = 0,
-            bar_width: int | float = 0.85,            
+            orientation: str = 'vertical',
+            theme: str = 'dark',
             color: str | list | dict = None,
-            miny: float = None, maxy: float = None,
+            other_color: str = None,
+            edgecolor: str = None,   
+            bar_width: int | float = 0.85,    
+            order: str | list = None,
+            x_labels_angle: int | float = 0,
+            y_labels_angle: int | float = 0,
+            miny: float = None,
+            maxy: float = None,
             title: str = None,
             **kwargs):
 
-        processed_args = {}      
+        cf = self.THEMES[theme]
+        processed_args = {}     
 
         if color is None: 
-            processed_args['color'] = default_bar_color
+            processed_args['color'] = cf.BAR_COLOR.value
         else:
             if type(color) == dict: # color mapping dict by name
                 x_colors = []
                 for name in x:
                     if name in color: x_colors.append(color[name])
-                    else: x_colors.append(default_bar_color)
+                    else: 
+                        if other_color is None: x_colors.append(cf.BAR_COLOR.value)
+                        else: x_colors.append(other_color)
                 processed_args['color'] = x_colors
             else:
                 try:
@@ -192,75 +241,104 @@ class Charter:
                 except:
                     processed_args['color'] = color # pass as is, could be a simple color for all element or a custom list of colors
 
+        if edgecolor is None: processed_args['edgecolor'] = None
+        else: processed_args['edgecolor'] = edgecolor
 
-        plt.rcParams.update({
-            'text.color': 'white',
-            'axes.labelcolor': 'white',
-            'xtick.color': 'white',
-            'ytick.color': 'white',
-            'axes.titlecolor': 'white'
-        })
-
-        fig=plt.figure(figsize=(w,h),facecolor='#282828')
-        plt.bar(x=x, height=y, width=bar_width, **processed_args, **kwargs);        
-
+        fig=plt.figure(figsize=(w,h))
+        plt.bar(x=x,
+                height=y, 
+                width=bar_width,
+                **processed_args, 
+                **kwargs);        
+        
         self.set_miny_maxy(miny,maxy)
 
         plt.xticks(rotation=x_labels_angle)
+        plt.yticks(rotation=y_labels_angle)
 
         try: xname = x.name
         except: xname=None
         if xname is not None: plt.xlabel(x.name)
-
+        
         try: yname = y.name
         except: yname=None
-        if yname is not None: plt.xlabel(x.name)
- 
+        if yname is not None: plt.ylabel(y.name)            
+
         if title is None:
             if xname is not None and yname is not None:
-                title = f'"{y.name}" by "{x.name}"'
+                title = f'{y.name} by "{x.name}"'
         plt.title(title)
 
-        ax = plt.gca()
+        self.set_theme(fig,cf)
 
-        # Set the background color of the plot area
-        ax.set_facecolor('#252525')
+        plt.show()
 
-        ax.grid(color='#252525') 
+   # -----------------------------------------------------------------------------------------------
 
-        # Set the border color of the plot area
-        ax.spines['top'].set_color('#444444')
-        ax.spines['right'].set_color('#444444')
-        ax.spines['bottom'].set_color('#444444')
-        ax.spines['left'].set_color('#444444')
+    def barh(self,
+            x: int | list | pd.Series,
+            y: int | list | pd.Series,
+            w: int | float = 6.0,
+            h: int | float = 2.0,
+            theme: str = 'dark',
+            color: str | list | dict = None,
+            edgecolor: str = None,   
+            bar_width: int | float = 0.85,    
+            x_labels_angle: int | float = 0,
+            y_labels_angle: int | float = 0,
+            miny: float = None,
+            maxy: float = None,
+            title: str = None,
+            **kwargs):
 
-        # Set the color of the ticks
-        ax.tick_params(axis='x', colors='#888888')
-        ax.tick_params(axis='y', colors='#888888')
+        cf = self.THEMES[theme]
+        processed_args = {}     
 
-        # Set the color of the tick labels separately
-        for label in ax.get_xticklabels():
-            label.set_color('white')  # Change x-axis tick label color to yellow
+        if color is None: 
+            processed_args['color'] = cf.BAR_COLOR.value
+        else:
+            if type(color) == dict: # color mapping dict by name
+                x_colors = []
+                for name in x:
+                    if name in color: x_colors.append(color[name])
+                    else: x_colors.append(cf.BAR_COLOR.value)
+                processed_args['color'] = x_colors
+            else:
+                try:
+                    color = plt.get_cmap(color).colors # check if a palette name
+                    processed_args['color']
+                except:
+                    processed_args['color'] = color # pass as is, could be a simple color for all element or a custom list of colors
 
-        for label in ax.get_yticklabels():
-            label.set_color('white')  # Change y-axis tick label color to yellow
+        if edgecolor is None: processed_args['edgecolor'] = None
+        else: processed_args['edgecolor'] = edgecolor
 
-        # Set the color of the tick labels
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
+        fig=plt.figure(figsize=(w,h))
+        plt.barh(y=y,
+                width=x, 
+                height=bar_width,
+                **processed_args, 
+                **kwargs);        
+        
+        self.set_minx_maxx(miny,maxy)
 
-        # Set the color of the title
-        ax.title.set_color('white')
+        plt.xticks(rotation=x_labels_angle)
+        plt.yticks(rotation=y_labels_angle)
 
-        # Set the color of the grid lines
-        # ax.grid(color='#252525') 
-        ax.grid(False) 
+        try: xname = x.name
+        except: xname=None
+        if xname is not None: plt.xlabel(x.name)
+        
+        try: yname = y.name
+        except: yname=None
+        if yname is not None: plt.ylabel(y.name)            
 
-        plt.rcParams.update({
-            'text.color': 'white',
-            'axes.labelcolor': 'white',
-            'xtick.color': 'white',
-            'ytick.color': 'white',
-            'axes.titlecolor': 'white'
-        })
+        if title is None:
+            if xname is not None and yname is not None:
+                title = f'{x.name} by "{y.name}"'
+        plt.title(title)
 
+        self.set_theme(fig,cf)     
+
+        plt.show()
+           
